@@ -2,50 +2,51 @@ from flask import Flask, request, jsonify
 import sqlite3
 
 app = Flask(__name__)
-DB_PATH = "shared.db"
 
-@app.route("/get_candle", methods=["GET"])
-def get_candle():
+DB_PATH = "shared.db"  # Certifique-se de que shared.db está sendo atualizado corretamente
+
+@app.route("/")
+def index():
+    return "API de candles online."
+
+@app.route("/candles")
+def get_candles():
+    symbol = request.args.get("symbol")
+    limit = request.args.get("limit", default=20, type=int)
+
+    if not symbol:
+        return jsonify({"error": "Símbolo não fornecido"}), 400
+
     try:
-        paridade = request.args.get("paridade")
-        timeframe = int(request.args.get("timeframe", 60))
-        timestamp = int(request.args.get("timestamp"))
-
         conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
+        cursor = conn.cursor()
 
-        cur.execute("""
-            SELECT symbol, epoch, open, high, low, close, volume
+        cursor.execute("""
+            SELECT symbol, epoch, open, close
             FROM candles
             WHERE symbol = ?
-            AND epoch <= ?
             ORDER BY epoch DESC
-            LIMIT 1
-        """, (paridade, timestamp))
+            LIMIT ?
+        """, (symbol, limit))
 
-        row = cur.fetchone()
+        rows = cursor.fetchall()
         conn.close()
 
-        if row:
-            candle = {
+        candles = []
+        for row in rows:
+            candles.append({
                 "symbol": row[0],
                 "epoch": row[1],
                 "open": row[2],
-                "high": row[3],
-                "low": row[4],
-                "close": row[5],
-                "volume": row[6]
-            }
-            return jsonify({"success": True, "candle": candle})
-        else:
-            return jsonify({"success": False, "error": "Candle não encontrado"})
+                "close": row[3]
+            })
+
+        candles.reverse()  # Deixar os candles do mais antigo para o mais recente
+        return jsonify(candles)
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"error": str(e)}), 500
 
-@app.route("/", methods=["GET"])
-def home():
-    return "Servidor de dados online", 200
-
+# Se quiser rodar localmente
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
