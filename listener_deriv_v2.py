@@ -142,7 +142,10 @@ async def connect_and_listen():
 
 def iniciar_listener():
     logging.info("🔄 Listener iniciado via função externa")
-    asyncio.run(connect_and_listen())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(connect_and_listen())
+
 
 if __name__ == "__main__":
     logging.info("🚀 Iniciando listener de candles V6 DEBUG (monitorando ticks)")
