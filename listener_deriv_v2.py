@@ -9,8 +9,8 @@ from collections import defaultdict
 # ======================
 # ⚡ CONFIGURAÇÕES
 # ======================
-APP_ID = "72037"  # Seu app_id oficial
-TOKEN = "a1-xRY5Wg0UzhBaR8jftPFNF3kYvkavb"  # Seu token oficial
+APP_ID = "72037"
+TOKEN = "a1-xRY5Wg0UzhBaR8jftPFNF3kYvkavb"
 WEBSOCKET_URL = f"wss://ws.derivws.com/websockets/v3?app_id={APP_ID}"
 
 # Ativos monitorados
@@ -18,9 +18,7 @@ forex_symbols = [
     "frxEURUSD", "frxUSDJPY", "frxGBPUSD", "frxAUDUSD", "frxUSDCHF",
     "frxUSDCAD", "frxNZDUSD", "frxEURJPY", "frxGBPJPY", "frxEURGBP"
 ]
-volatility_symbols = [
-    "R_10", "R_25", "R_50", "R_75", "R_100"
-]
+volatility_symbols = ["R_10", "R_25", "R_50", "R_75", "R_100"]
 wanted_symbols = forex_symbols + volatility_symbols
 
 # Banco de dados
@@ -70,7 +68,7 @@ def build_candle(symbol):
     volume = len(ticks)
     epoch_minute = ticks[0]['epoch'] - (ticks[0]['epoch'] % 60)
 
-    candle = {
+    return {
         "symbol": symbol,
         "epoch": epoch_minute,
         "open": open_price,
@@ -79,7 +77,6 @@ def build_candle(symbol):
         "close": close_price,
         "volume": volume
     }
-    return candle
 
 async def connect_and_listen():
     while True:
@@ -95,35 +92,26 @@ async def connect_and_listen():
                 else:
                     logging.info("🔑 Autenticado com sucesso")
 
-                # Assinar TICKS corretos
                 for symbol in wanted_symbols:
-                    subscribe_ticks = {
+                    await websocket.send(json.dumps({
                         "ticks": symbol,
                         "subscribe": 1
-                    }
-                    await websocket.send(json.dumps(subscribe_ticks))
+                    }))
                     logging.info(f"🛎 Assinado para receber TICKS de {symbol}")
                     await asyncio.sleep(0.1)
 
                 current_minute = int(time.time() // 60)
 
-                # Escutando WebSocket
                 while True:
                     response = await websocket.recv()
                     data = json.loads(response)
 
-                    # DEBUG: Printar cada tick recebido!
                     if data.get('msg_type') == 'tick':
                         tick = data['tick']
                         symbol = tick['symbol']
-                        quote = tick['quote']
-                        epoch = tick['epoch']
-
-                        logging.info(f"📈 Tick recebido | {symbol} | Preço: {quote} | Horário: {epoch}")
-
                         ticks_data[symbol].append(tick)
+                        logging.info(f"📈 Tick recebido | {symbol} | Preço: {tick['quote']} | Horário: {tick['epoch']}")
 
-                    # Gerar candle a cada novo minuto
                     new_minute = int(time.time() // 60)
                     if new_minute != current_minute:
                         for symbol in wanted_symbols:
@@ -140,13 +128,9 @@ async def connect_and_listen():
             logging.error(f"Erro inesperado: {e}")
             time.sleep(5)
 
+# ✅ Função segura para rodar em thread
 def iniciar_listener():
-    logging.info("🔄 Listener iniciado via função externa")
+    logging.info("🚀 Iniciando listener de candles V6 EMBUTIDO (thread segura)")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(connect_and_listen())
-
-
-if __name__ == "__main__":
-    logging.info("🚀 Iniciando listener de candles V6 DEBUG (monitorando ticks)")
-    asyncio.run(connect_and_listen())
