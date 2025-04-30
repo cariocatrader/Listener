@@ -3,30 +3,37 @@ import sqlite3
 
 app = Flask(__name__)
 
-@app.route("/")
+@app.route('/')
 def home():
-    return "🔗 API ativa - Banco compartilhado."
+    return "✅ Web Service do shared.db está ativo!"
 
-@app.route("/paridades")
-def listar_paridades():
+@app.route('/ultimo_candle/<string:symbol>')
+def ultimo_candle(symbol):
     try:
         con = sqlite3.connect("shared.db")
         cur = con.cursor()
-        cur.execute("SELECT DISTINCT symbol FROM candles ORDER BY symbol ASC")
-        dados = [row[0] for row in cur.fetchall()]
+        cur.execute("""
+            SELECT symbol, epoch, open, close
+            FROM candles
+            WHERE symbol = ?
+            ORDER BY epoch DESC
+            LIMIT 1
+        """, (symbol,))
+        row = cur.fetchone()
         con.close()
-        return jsonify({"paridades": dados})
-    except Exception as e:
-        return jsonify({"error": str(e)})
 
-@app.route("/ultimos/<symbol>")
-def ultimos_candles(symbol):
-    try:
-        con = sqlite3.connect("shared.db")
-        cur = con.cursor()
-        cur.execute("SELECT * FROM candles WHERE symbol=? ORDER BY epoch DESC LIMIT 5", (symbol,))
-        candles = cur.fetchall()
-        con.close()
-        return jsonify({"symbol": symbol, "candles": candles})
+        if row:
+            return jsonify({
+                "symbol": row[0],
+                "epoch": row[1],
+                "open": row[2],
+                "close": row[3]
+            })
+        else:
+            return jsonify({"error": "Nenhum dado encontrado"}), 404
+
     except Exception as e:
-        return jsonify({"error": str(e)})
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=10000)
