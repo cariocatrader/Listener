@@ -1,43 +1,46 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import sqlite3
 
 app = Flask(__name__)
 
-def get_connection():
-    return sqlite3.connect("shared.db")
-
 @app.route("/")
-def home():
-    return "✅ API do Shared DB está online."
+def index():
+    return "API Online - Carioca Shared DB"
 
-@app.route("/candles/<symbol>")
-def get_candles(symbol):
+@app.route("/candles")
+def get_candle():
+    symbol = request.args.get("symbol")
+    timestamp = request.args.get("timestamp")
+
+    if not symbol or not timestamp:
+        return jsonify({"error": "Parâmetros ausentes: symbol e timestamp são obrigatórios."})
+
     try:
-        con = get_connection()
+        con = sqlite3.connect("shared.db")
         cur = con.cursor()
         cur.execute("""
-            SELECT epoch, open, high, low, close, volume
-            FROM candles
-            WHERE symbol = ?
-            ORDER BY epoch DESC LIMIT 10
-        """, (symbol,))
-        rows = cur.fetchall()
+            SELECT * FROM candles
+            WHERE symbol = ? AND epoch <= ?
+            ORDER BY epoch DESC LIMIT 1
+        """, (symbol, int(timestamp)))
+        row = cur.fetchone()
         con.close()
 
-        candles = [
-            {
-                "epoch": r[0],
-                "open": r[1],
-                "high": r[2],
-                "low": r[3],
-                "close": r[4],
-                "volume": r[5]
-            } for r in rows
-        ]
-        return jsonify(candles)
+        if row:
+            return jsonify({
+                "symbol": row[0],
+                "epoch": row[1],
+                "open": row[2],
+                "high": row[3],
+                "low": row[4],
+                "close": row[5],
+                "volume": row[6]
+            })
+        else:
+            return jsonify({"error": "Candle não encontrado."})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e)})
 
-if __name__ == "__main__":
+def iniciar_api():
     app.run(host="0.0.0.0", port=10000)
