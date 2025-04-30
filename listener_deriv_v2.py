@@ -140,6 +140,10 @@ async def connect_and_listen():
             logging.error(f"Erro inesperado: {e}")
             time.sleep(5)
 
+def iniciar_listener():
+    logging.info("🔄 Listener iniciado via função externa")
+    asyncio.run(connect_and_listen())
+
 if __name__ == "__main__":
     logging.info("🚀 Iniciando listener de candles V6 DEBUG (monitorando ticks)")
     asyncio.run(connect_and_listen())
