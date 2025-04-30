@@ -1,11 +1,9 @@
 import threading
+from serve_db import app
 import listener_deriv_v2
-import serve_db
 
-# Inicia o listener da Deriv (ajustado)
-t1 = threading.Thread(target=listener_deriv_v2.iniciar_listener)
-t1.start()
+if __name__ == '__main__':
+    t1 = threading.Thread(target=listener_deriv_v2.iniciar_listener, daemon=True)
+    t1.start()
 
-# Inicia o servidor Flask
-t2 = threading.Thread(target=serve_db.run_app)
-t2.start()
+    app.run(host="0.0.0.0", port=10000)
