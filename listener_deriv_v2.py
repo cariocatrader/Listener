@@ -6,9 +6,6 @@ import time
 import logging
 from collections import defaultdict
 
-# ======================
-# ⚡ CONFIGURAÇÕES
-# ======================
 APP_ID = "72037"
 TOKEN = "a1-xRY5Wg0UzhBaR8jftPFNF3kYvkavb"
 WEBSOCKET_URL = f"wss://ws.derivws.com/websockets/v3?app_id={APP_ID}"
@@ -22,6 +19,7 @@ wanted_symbols = forex_symbols + volatility_symbols
 
 conn = sqlite3.connect('shared.db', check_same_thread=False)
 cursor = conn.cursor()
+
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS candles (
     symbol TEXT,
@@ -63,7 +61,7 @@ def build_candle(symbol):
     volume = len(ticks)
     epoch_minute = ticks[0]['epoch'] - (ticks[0]['epoch'] % 60)
 
-    candle = {
+    return {
         "symbol": symbol,
         "epoch": epoch_minute,
         "open": open_price,
@@ -72,7 +70,6 @@ def build_candle(symbol):
         "close": close_price,
         "volume": volume
     }
-    return candle
 
 async def connect_and_listen():
     while True:
@@ -85,11 +82,14 @@ async def connect_and_listen():
                 if auth_data.get('msg_type') != 'authorize':
                     logging.error("❌ Erro na autenticação")
                     continue
-                else:
-                    logging.info("🔑 Autenticado com sucesso")
+                logging.info("🔑 Autenticado com sucesso")
 
                 for symbol in wanted_symbols:
-                    await websocket.send(json.dumps({"ticks": symbol, "subscribe": 1}))
+                    await websocket.send(json.dumps({
+                        "ticks": symbol,
+                        "subscribe": 1
+                    }))
+                    logging.info(f"🛎 Subscrito {symbol}")
                     await asyncio.sleep(0.1)
 
                 current_minute = int(time.time() // 60)
@@ -113,12 +113,12 @@ async def connect_and_listen():
                         current_minute = new_minute
 
         except websockets.exceptions.ConnectionClosed as e:
-            logging.warning(f"⚡ Conexão WebSocket fechada: {e}. Tentando reconectar...")
+            logging.warning(f"⚡ WebSocket fechado: {e}. Reconectando...")
             time.sleep(5)
         except Exception as e:
             logging.error(f"Erro inesperado: {e}")
             time.sleep(5)
 
-def iniciar_listener():
-    logging.info("🚀 Iniciando listener com Gunicorn (modo compatível)")
+if __name__ == "__main__":
+    logging.info("🚀 Iniciando listener de candles...")
     asyncio.run(connect_and_listen())
