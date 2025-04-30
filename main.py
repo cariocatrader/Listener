@@ -1,11 +1,9 @@
-import threading
-from serve_db import app  # Flask app
-import listener_deriv_v2  # Módulo que contém iniciar_listener()
+from serve_db import app
+from threading import Thread
+import listener_deriv_v2
 
-if __name__ == '__main__':
-    # Iniciar listener em thread separada
-    t1 = threading.Thread(target=listener_deriv_v2.iniciar_listener, daemon=True)
-    t1.start()
+def start_listener():
+    listener_deriv_v2.iniciar_listener()
 
-    # Iniciar Flask
-    app.run(host="0.0.0.0", port=10000)
+# Inicia o listener em thread separada
+Thread(target=start_listener, daemon=True).start()
