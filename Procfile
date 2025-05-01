@@ -1,2 +1,1 @@
-worker: python listener_deriv.py
-
+worker: python main.py
