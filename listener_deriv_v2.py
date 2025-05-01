@@ -1,14 +1,14 @@
 import asyncio
 import websockets
 import json
-import sqlite3
 import time
-import logging
+import requests
 from collections import defaultdict
 
 APP_ID = "72037"
 TOKEN = "a1-xRY5Wg0UzhBaR8jftPFNF3kYvkavb"
 WEBSOCKET_URL = f"wss://ws.derivws.com/websockets/v3?app_id={APP_ID}"
+REMOTE_DB_URL = "https://server-p2qr.onrender.com/salvar_candle"
 
 forex_symbols = [
     "frxEURUSD", "frxUSDJPY", "frxGBPUSD", "frxAUDUSD", "frxUSDCHF",
@@ -17,36 +17,26 @@ forex_symbols = [
 volatility_symbols = ["R_10", "R_25", "R_50", "R_75", "R_100"]
 wanted_symbols = forex_symbols + volatility_symbols
 
-conn = sqlite3.connect('shared.db', check_same_thread=False)
-cursor = conn.cursor()
-
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS candles (
-    symbol TEXT,
-    epoch INTEGER,
-    open REAL,
-    high REAL,
-    low REAL,
-    close REAL,
-    volume INTEGER,
-    PRIMARY KEY (symbol, epoch)
-)
-''')
-conn.commit()
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 ticks_data = defaultdict(list)
 
 def save_candle(symbol, candle):
     try:
-        cursor.execute('''
-        INSERT OR IGNORE INTO candles (symbol, epoch, open, high, low, close, volume)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (symbol, candle['epoch'], candle['open'], candle['high'], candle['low'], candle['close'], candle['volume']))
-        conn.commit()
-        logging.info(f"✅ Candle salvo | {symbol} | {candle['epoch']} | Close: {candle['close']}")
+        data = {
+            "symbol": symbol,
+            "epoch": candle["epoch"],
+            "open": candle["open"],
+            "high": candle["high"],
+            "low": candle["low"],
+            "close": candle["close"],
+            "volume": candle["volume"]
+        }
+        response = requests.post(REMOTE_DB_URL, json=data)
+        if response.status_code == 200 and response.json().get("success"):
+            print(f"✅ Candle enviado | {symbol} | {candle['epoch']} | Close: {candle['close']}")
+        else:
+            print(f"⚠️ Erro ao enviar candle: {response.text}")
     except Exception as e:
-        logging.error(f"Erro ao salvar candle: {e}")
+        print(f"❌ Erro ao tentar enviar candle: {e}")
 
 def build_candle(symbol):
     ticks = ticks_data[symbol]
@@ -74,33 +64,25 @@ def build_candle(symbol):
 async def connect_and_listen():
     while True:
         try:
-            async with websockets.connect(WEBSOCKET_URL, ping_interval=None) as websocket:
-                await websocket.send(json.dumps({"authorize": TOKEN}))
-                auth_response = await websocket.recv()
-                auth_data = json.loads(auth_response)
-
-                if auth_data.get('msg_type') != 'authorize':
-                    logging.error("❌ Erro na autenticação")
+            async with websockets.connect(WEBSOCKET_URL, ping_interval=None) as ws:
+                await ws.send(json.dumps({"authorize": TOKEN}))
+                auth_response = await ws.recv()
+                if json.loads(auth_response).get("msg_type") != "authorize":
+                    print("❌ Erro na autenticação")
                     continue
-                logging.info("🔑 Autenticado com sucesso")
+                print("🔐 Autenticado com sucesso")
 
                 for symbol in wanted_symbols:
-                    await websocket.send(json.dumps({
-                        "ticks": symbol,
-                        "subscribe": 1
-                    }))
-                    logging.info(f"🛎 Subscrito {symbol}")
-                    await asyncio.sleep(0.1)
+                    await ws.send(json.dumps({"ticks": symbol, "subscribe": 1}))
+                    await asyncio.sleep(0.05)
 
                 current_minute = int(time.time() // 60)
 
                 while True:
-                    response = await websocket.recv()
-                    data = json.loads(response)
-
-                    if data.get('msg_type') == 'tick':
-                        tick = data['tick']
-                        symbol = tick['symbol']
+                    data = json.loads(await ws.recv())
+                    if data.get("msg_type") == "tick":
+                        tick = data["tick"]
+                        symbol = tick["symbol"]
                         ticks_data[symbol].append(tick)
 
                     new_minute = int(time.time() // 60)
@@ -112,13 +94,10 @@ async def connect_and_listen():
                         ticks_data.clear()
                         current_minute = new_minute
 
-        except websockets.exceptions.ConnectionClosed as e:
-            logging.warning(f"⚡ WebSocket fechado: {e}. Reconectando...")
-            time.sleep(5)
         except Exception as e:
-            logging.error(f"Erro inesperado: {e}")
-            time.sleep(5)
+            print(f"⚠️ Erro: {e}")
+            await asyncio.sleep(5)
 
-if __name__ == "__main__":
-    logging.info("🚀 Iniciando listener de candles...")
+def iniciar_listener():
+    print("🚀 Iniciando listener com POST remoto")
     asyncio.run(connect_and_listen())
