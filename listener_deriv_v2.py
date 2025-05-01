@@ -1,7 +1,6 @@
 import asyncio
 import websockets
 import json
-import sqlite3
 import time
 import logging
 import requests
@@ -105,6 +104,3 @@ def iniciar_listener():
 
 if __name__ == "__main__":
     iniciar_listener()
-'''
-with open("/mnt/data/listener_deriv_v2.py", "w") as f:
-    f.write(listener_code)
