@@ -75,27 +75,35 @@ async def connect_and_listen():
                 current_minute = int(time.time() // 60)
 
                 while True:
-                    data = json.loads(await websocket.recv())
+                    try:
+                        data = json.loads(await websocket.recv())
 
-                    if data.get('msg_type') == 'tick':
-                        tick = data['tick']
-                        symbol = tick['symbol']
-                        ticks_data[symbol].append(tick)
+                        if data.get('msg_type') == 'tick' and 'tick' in data:
+                            tick = data['tick']
+                            symbol = tick['symbol']
+                            ticks_data[symbol].append(tick)
+                        else:
+                            logging.debug(f"Mensagem ignorada: {data.get('msg_type')}")
+                    
+                        new_minute = int(time.time() // 60)
+                        if new_minute != current_minute:
+                            for symbol in wanted_symbols:
+                                candle = build_candle(symbol)
+                                if candle:
+                                    enviar_para_webservice(candle)
+                            ticks_data.clear()
+                            current_minute = new_minute
 
-                    new_minute = int(time.time() // 60)
-                    if new_minute != current_minute:
-                        for symbol in wanted_symbols:
-                            candle = build_candle(symbol)
-                            if candle:
-                                enviar_para_webservice(candle)
-                        ticks_data.clear()
-                        current_minute = new_minute
+                    except json.JSONDecodeError:
+                        logging.warning("⚠️ Falha ao decodificar mensagem do WebSocket")
+                    except Exception as e:
+                        logging.error(f"Erro interno no loop de ticks: {e}")
 
         except websockets.exceptions.ConnectionClosed as e:
             logging.warning(f"⚡ WebSocket desconectado: {e}")
             await asyncio.sleep(5)
         except Exception as e:
-            logging.error(f"Erro inesperado: {e}")
+            logging.error(f"Erro inesperado fora do loop: {e}")
             await asyncio.sleep(5)
 
 def iniciar_listener():
