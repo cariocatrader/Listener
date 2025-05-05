@@ -12,9 +12,10 @@ WEBSOCKET_URL = f"wss://ws.derivws.com/websockets/v3?app_id={APP_ID}"
 WEB_SERVICE_URL = "https://server-p2qr.onrender.com/salvar_candle"
 
 forex_symbols = [
-    "frxEURUSD", "frxUSDJPY", "frxGBPUSD", "frxAUDUSD", "frxUSDCHF",
-    "frxUSDCAD", "frxNZDUSD", "frxEURJPY", "frxGBPJPY", "frxEURGBP"
+    "frxEURUSD", "frxGBPUSD", "frxUSDJPY", "frxAUDUSD", "frxUSDCAD",
+    "frxUSDCHF", "frxNZDUSD", "frxEURJPY", "frxGBPJPY", "frxAUDJPY", "frxEURGBP"
 ]
+
 volatility_symbols = ["R_10", "R_25", "R_50", "R_75", "R_100"]
 wanted_symbols = forex_symbols + volatility_symbols
 
