@@ -27,7 +27,6 @@ def build_candle(symbol):
     ticks = ticks_data[symbol]
     if not ticks:
         return None
-
     ticks.sort(key=lambda x: x['epoch'])
     open_price = ticks[0]['quote']
     close_price = ticks[-1]['quote']
@@ -35,7 +34,6 @@ def build_candle(symbol):
     low_price = min(tick['quote'] for tick in ticks)
     volume = len(ticks)
     epoch_minute = ticks[0]['epoch'] - (ticks[0]['epoch'] % 60)
-
     return {
         "symbol": symbol,
         "epoch": epoch_minute,
@@ -59,14 +57,16 @@ def enviar_para_webservice(candle):
 async def connect_and_listen():
     while True:
         try:
-            async with websockets.connect(WEBSOCKET_URL, ping_interval=None) as websocket:
+            async with websockets.connect(WEBSOCKET_URL, ping_interval=30) as websocket:
                 await websocket.send(json.dumps({"authorize": TOKEN}))
                 auth_data = json.loads(await websocket.recv())
+
                 if auth_data.get('msg_type') != 'authorize':
                     logging.error("❌ Erro na autenticação")
+                    await asyncio.sleep(5)
                     continue
-                else:
-                    logging.info("🔑 Autenticado com sucesso")
+
+                logging.info("🔑 Autenticado com sucesso")
 
                 for symbol in wanted_symbols:
                     await websocket.send(json.dumps({"ticks": symbol, "subscribe": 1}))
@@ -77,15 +77,14 @@ async def connect_and_listen():
 
                 while True:
                     try:
-                        data = json.loads(await websocket.recv())
+                        message = await websocket.recv()
+                        data = json.loads(message)
 
                         if data.get('msg_type') == 'tick' and 'tick' in data:
                             tick = data['tick']
                             symbol = tick['symbol']
                             ticks_data[symbol].append(tick)
-                        else:
-                            logging.debug(f"Mensagem ignorada: {data.get('msg_type')}")
-                    
+
                         new_minute = int(time.time() // 60)
                         if new_minute != current_minute:
                             for symbol in wanted_symbols:
@@ -95,16 +94,16 @@ async def connect_and_listen():
                             ticks_data.clear()
                             current_minute = new_minute
 
-                    except json.JSONDecodeError:
-                        logging.warning("⚠️ Falha ao decodificar mensagem do WebSocket")
-                    except Exception as e:
-                        logging.error(f"Erro interno no loop de ticks: {e}")
+                    except (websockets.exceptions.ConnectionClosedError, websockets.exceptions.ConnectionClosedOK) as e:
+                        logging.warning(f"🔌 Conexão encerrada no loop interno: {e}")
+                        break  # Sair do loop interno para reconectar
 
-        except websockets.exceptions.ConnectionClosed as e:
-            logging.warning(f"⚡ WebSocket desconectado: {e}")
-            await asyncio.sleep(5)
+                    except Exception as e:
+                        logging.error(f"❗ Erro interno no loop de ticks: {e}")
+                        await asyncio.sleep(1)
+
         except Exception as e:
-            logging.error(f"Erro inesperado fora do loop: {e}")
+            logging.error(f"🔥 Erro de conexão externa: {e}")
             await asyncio.sleep(5)
 
 def iniciar_listener():
